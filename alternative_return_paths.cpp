@@ -3,6 +3,50 @@
 // [2] Phil Nash's CppCon 2019 talk,
 //      "The Dawn of a New Error" ( https://www.youtube.com/watch?v=ZUH8p1EQswA )
 
+// Semantics:
+// * A function can declare an arbitrary number of alternative return-paths
+//   via the "->[<identifier>]" notation. For each returns-path declaration,
+//   a return-type may also be specified; if it is omitted it defaults to
+//   "void".
+// * At function call-site, each of the alternative return-paths must be
+//   handled in exactly one of the following two ways:
+//   - The caller can specify a return-path handler, also via the
+//     "->[<identifier>]" notation.
+//   - The function containing the call-site can itself contain the same
+//     alternative return-path (with a return-type that can be constructed
+//     from the type returned by the called function on the return-path). In
+//     this case, the current function returns, and the alternative return
+//     value is passed through.
+// * _All_ function calls allow the following return-path handlers:
+//   - just the keyword "throw"; this could mean that the value returned via
+//     this return-path is thrown as an exception.
+//   - A parameter declaration plus a function body. The function body must
+//     either return, alternative-return, join, or throw an exception.
+//     ~ An (alternative-)return statement here indicates that the _calling_
+//       function returns (either via the default return path or the specified
+//       alternative return-path.
+//     ~ A join statement means that the return-path is joined back into the
+//       default return-path. It might take the form
+//          { ...; join <expression>; }
+//       where "<expression>" is convertible to the default return-type.
+// * Function calls to functions that return void or whose return-value
+//   is ignored, could also have function bodies on return-path handlers
+//   that don't do any of the above (i.e., neither return, join, nor throw).
+// * A constructor could also declare an arbitrary number of return-paths, but
+//   without a return-type.
+// * Return-type handlers for object constructors are mostly similar to the
+//   above. Not sure if a join statement should be allowed here?
+// * One could also allow for return-path handlers to apply to compound
+//   statements?
+//      { parse(a); parse(b); } ->[parse_error] ...
+
+// Open questions:
+// * How to handle alternative return-paths in nested function calls?
+// * How to handle alternate return-paths in copy-assignment?
+// * How to handle x = make_an_x() if both "make_an_x" and x's assignment
+//   operator have alternative return-paths. In particular, the
+//   assignment operator might return bad_alloc errors.
+
 // Alternative return-paths could be introduced via
 // the "->[<identifier>] <type-id>" notation. An arbitrary
 // number of alternative return-paths could be allowed.
@@ -154,45 +198,3 @@ FileReader open_file_3(std::string_view const filename)
 {
   return FileReader(filename);
 }
-
-// Semantics:
-// * A function can declare an arbitrary number of alternative return-paths
-//   via the "->[<identifier>]" notation. For each returns-path declaration,
-//   a return-type may also be specified; if it is omitted it defaults to
-//   "void".
-// * At function call-site, each of the alternative return-paths must be
-//   handled in exactly one of the following two ways:
-//   - The caller can specify a return-path handler, also via the
-//     "->[<identifier>]" notation.
-//   - The function containing the call-site can itself contain the same
-//     alternative return-path (with a return-type that can be constructed
-//     from the type returned by the called function on the return-path). In
-//     this case, the current function returns, and the alternative return
-//     value is passed through.
-// * _All_ function calls allow the following return-path handlers:
-//   - just the keyword "throw"; this could mean that the value returned via
-//     this return-path is thrown as an exception.
-//   - A parameter declaration plus a function body. The function body must
-//     either return, alternative-return, join, or throw an exception.
-//     ~ An (alternative-)return statement here indicates that the _calling_
-//       function returns (either via the default return path or the specified
-//       alternative return-path.
-//     ~ A join statement means that the return-path is joined back into the
-//       default return-path. It might take the form
-//          { ...; join <expression>; }
-//       where "<expression>" is convertible to the default return-type.
-// * Function calls to functions that return void or whose return-value
-//   is ignored, could also have function bodies on return-path handlers
-//   that don't do any of the above (i.e., neither return, join, nor throw).
-// * A constructor could also declare an arbitrary number of return-paths, but
-//   without a return-type.
-// * Return-type handlers for object constructors are mostly similar to the
-//   above. Not sure if a join statement should be allowed here?
-
-// Open questions:
-// * How to handle alternative return-paths in nested function calls?
-// * How to handle alternate return-paths in copy-assignment?
-// * How to handle x = make_an_x() if both "make_an_x" and x's assignment
-//   operator have alternative return-paths. In particular, the
-//   assignment operator might return bad_alloc errors.
-
