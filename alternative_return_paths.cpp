@@ -1,68 +1,7 @@
-// Memory allocation
-class my_int_vector {
-    int* m_data = nullptr;
-    int m_size = 0;
-  public:
-    my_int_vector() = default;
-  ~my_int_vector() {
-    delete[] m_data;
-  }
-
-  my_int_vector(my_int_vector const&) = delete;
-  my_int_vector& operator=(my_int_vector const&) = delete;
-
-  void resize () ->(memory) void;
-};
-
-void play_with_my_int_vector() ->(memory) {
-  my_int_vector vec;
-  vec.resize(1000);
-}
-
-// How to handle alternate return-paths in assignment operator?
-// How to handle x = make_an_x() if both "make_an_x" and x's assignment operator
-// have alternative return-paths. In particular, the assignment operator
-// might return memory errors.
-
-class Borrower {
-  int m_id;
-  std::string m_name;
-
-  void reset_aaa(int const id, char const* name) {
-    m_id = id;
-    m_name = name ->(memory);
-  }
-
-  void reset_bbb(int const id, std::string name) {
-    m_id = id;
-    m_name = std::move(name);
-  }
-};
-
-// Constructor-level alternative return-paths
-
-class FileReader {
-    std::ifstream ifs;
-  public:
-    FileReader(std::string_view filename) ->(file_not_found);
-};
-
-FileReader open_file_aaa(std::string_view const filename) {
-  FileReader retval(filename) ->(file_not_found) throw;
-  return retval;
-}
-
-FileReader open_file_bbb(std::string_view const filename) {
-  FileReader retval(filename) ->(file_not_found)
-        { -> FileReader("backup.txt") ->(file_not_found) throw; };
-  return retval;
-}
-
-FileReader open_file_ccc(std::string_view const filename)
-    ->(file_not_found) void
-{
-  return FileReader(filename);
-}
+// References:
+// [1] http://lucteo.ro/2018/04/21/exception-exploration-2/
+// [2] Phil Nash's CppCon 2019 talk,
+//      "The Dawn of a New Error" ( https://www.youtube.com/watch?v=ZUH8p1EQswA )
 
 // Alternative return-paths could be introduced via
 // the "->(<identifier>)" notation. An arbitrary number
@@ -85,7 +24,7 @@ int parse_int(std::string_view const str)
 
 // The primary return-path is the one without an
 // identifier (i.e., just "->"), compatible with current syntax.
-auto parse_int_square_aaa(std::string_view const str)
+auto parse_int_square_1(std::string_view const str)
     -> std::tuple<int, int> //, (?)
     ->(error) std::string
 {
@@ -103,7 +42,7 @@ auto parse_int_square_aaa(std::string_view const str)
 
 // This function does mostly the same as the previous;
 // only the error message is shorter (pass-through).
-auto parse_int_square_bbb(std::string_view const str)
+auto parse_int_square_2(std::string_view const str)
     -> std::tuple<int, int>
     ->(error) std::string
 {
@@ -116,7 +55,7 @@ auto parse_int_square_bbb(std::string_view const str)
   return i, i * i;
 }
 
-int main_aaa() {
+int main_1() {
   std::string input;
   std::cin >> input;
 
@@ -124,23 +63,23 @@ int main_aaa() {
   // return-path as an exception. Necessary, because
   // this function does not declare the ->(error) return-path
   // itself.
-  auto const [i, i_sq] = parse_int_sq_aaa(input) ->(error) throw;
-//auto const [i, i_sq] = parse_int_sq_aaa(input) ->(error) { return(default) 1; };
-//auto const [i, i_sq] = parse_int_sq_aaa(input) ->(error) { -> {0, 0}; };
+  auto const [i, i_sq] = parse_int_sq_1(input) ->(error) throw;
+//auto const [i, i_sq] = parse_int_sq_1(input) ->(error) { return(default) 1; };
+//auto const [i, i_sq] = parse_int_sq_1(input) ->(error) { -> {0, 0}; };
 
   assert(i * i == i_sq);
   std::cout << "i_sq = " << i_sq << '\n';
   return 0;
 }
 
-int main_bbb() {
+int main_2() {
   std::string input;
   std::cin >> input;
 
   // The new syntax for accepting return values on
   // alternative return-paths can be used for the
   // primary return-path as well.
-  parse_int_sq_bbb(input)
+  parse_int_sq_2(input)
     -> auto const [i, i_sq] {
       assert(i * i == i_sq);
       std::cout << "i_sq = " << i_sq << '\n';
@@ -152,9 +91,77 @@ int main_bbb() {
     };
 }
 
-int main_ccc() {
-  inspect (parse_int_sq_ccc(input)) {
+int main_3() {
+  inspect (parse_int_sq_3(input)) {
     <0> [i, i_sq] : std::cout << "i_sq = " << i_sq << '\n';
     <std::error> err : std::cout << "Error: " << err << '\n';
   }
 }
+
+// Memory allocation
+class my_int_vector {
+    int* m_data = nullptr;
+    int m_size = 0;
+
+  public:
+    my_int_vector() = default;
+    ~my_int_vector() {
+      delete[] m_data;
+    }
+
+    my_int_vector(my_int_vector const&) = delete;
+    my_int_vector& operator=(my_int_vector const&) = delete;
+
+    void resize () ->(memory) void;
+};
+
+void play_with_my_int_vector() ->(memory) {
+  my_int_vector vec;
+  vec.resize(1000);
+}
+
+// How to handle alternate return-paths in assignment operator?
+// How to handle x = make_an_x() if both "make_an_x" and x's assignment operator
+// have alternative return-paths. In particular, the assignment operator
+// might return memory errors.
+
+class Borrower {
+  int m_id;
+  std::string m_name;
+
+  void reset_1(int const id, char const* name) {
+    m_id = id;
+    m_name = name ->(memory);
+  }
+
+  void reset_2(int const id, std::string name) {
+    m_id = id;
+    m_name = std::move(name);
+  }
+};
+
+// Constructor-level alternative return-paths
+
+class FileReader {
+    std::ifstream ifs;
+  public:
+    FileReader(std::string_view filename) ->(file_not_found);
+};
+
+FileReader open_file_1(std::string_view const filename) {
+  FileReader retval(filename) ->(file_not_found) throw;
+  return retval;
+}
+
+FileReader open_file_2(std::string_view const filename) {
+  FileReader retval(filename) ->(file_not_found)
+        { -> FileReader("backup.txt") ->(file_not_found) throw; };
+  return retval;
+}
+
+FileReader open_file_3(std::string_view const filename)
+    ->(file_not_found) void
+{
+  return FileReader(filename);
+}
+
